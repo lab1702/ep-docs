@@ -36,6 +36,11 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
+COOKIES = {
+    'doj_disclosures': {
+        'justiceGovAgeVerified': 'true',
+    },
+}
 
 def safe_read_html(url, max_retries=3, delay=2):
     """Safely read a webpage with retry logic."""
@@ -115,7 +120,11 @@ def download_pdf(url, base_output_dir=OUTPUT_DIR, overwrite=False):
 
     try:
         time.sleep(0.5)
-        response = requests.get(url, headers=HEADERS, timeout=120)
+        response = requests.get(
+            url, headers=HEADERS, timeout=120, **({
+                'cookies': COOKIES["doj_disclosures"]
+            } if 'DataSet' in url else {}
+        )) # Kludge, but trying to keep mods simple
         if response.status_code == 200:
             output_path.write_bytes(response.content)
             print(f"  Downloaded: {output_path}")
@@ -209,7 +218,7 @@ def scrape_doj_disclosures():
     print(f"Found {len(main_pdfs)} PDFs on main page")
 
     # Check data set sub-pages
-    for i in range(1, 11):
+    for i in range(1, 13):
         ds_url = f"{BASE_URL}/epstein/doj-disclosures/data-set-{i}-files"
         print(f"\nChecking Data Set: {ds_url}")
 
@@ -229,7 +238,8 @@ def scrape_doj_disclosures():
         print(f"  Page 0: Found {len(ds_pdfs)} PDFs")
 
         # Check pagination
-        for page_num in range(1, 101):
+        page_num = 1
+        while True:
             page_url = f"{ds_url}?page={page_num}"
             if page_url in visited_pages:
                 continue
@@ -250,6 +260,7 @@ def scrape_doj_disclosures():
 
             all_pdf_links.extend(paged_pdfs)
             print(f"  Page {page_num}: Found {len(new_pdfs)} new PDFs")
+            page_num += 1
 
     all_pdf_links = list(set(all_pdf_links))
     print(f"\nTotal unique PDFs found in DOJ Disclosures: {len(all_pdf_links)}")
